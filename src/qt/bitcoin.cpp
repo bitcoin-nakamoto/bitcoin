@@ -91,7 +91,7 @@ static void InitMessage(const std::string &message)
  */
 static std::string Translate(const char* psz)
 {
-    return QCoreApplication::translate("bitcoin-core", psz).toStdString();
+    return QCoreApplication::translate("bitcoin", psz).toStdString();
 }
 
 static QString GetLangTerritory()
@@ -169,7 +169,7 @@ void DebugMessageHandler(QtMsgType type, const QMessageLogContext& context, cons
 }
 #endif
 
-/** Class encapsulating Bitcoin Core startup and shutdown.
+/** Class encapsulating Bitcoin startup and shutdown.
  * Allows running startup and shutdown in a different thread from the UI thread.
  */
 class BitcoinCore: public QObject

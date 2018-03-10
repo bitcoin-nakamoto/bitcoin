@@ -27,7 +27,6 @@ struct CBlockTemplate
     CBlock block;
     std::vector<CAmount> vTxFees;
     std::vector<int64_t> vTxSigOpsCost;
-    std::vector<unsigned char> vchCoinbaseCommitment;
 };
 
 // Container for tracking updates to ancestor feerate as we include (parent)
@@ -129,12 +128,11 @@ private:
     CBlock* pblock;
 
     // Configuration parameters for the block size
-    bool fIncludeWitness;
-    unsigned int nBlockMaxWeight;
+    uint64_t nMaxGeneratedBlockSize;
     CFeeRate blockMinFeeRate;
 
     // Information on the current status of the block
-    uint64_t nBlockWeight;
+    uint64_t nBlockSize;
     uint64_t nBlockTx;
     uint64_t nBlockSigOpsCost;
     CAmount nFees;
@@ -148,7 +146,7 @@ private:
 public:
     struct Options {
         Options();
-        size_t nBlockMaxWeight;
+        size_t nMaxGeneratedBlockSize;
         CFeeRate blockMinFeeRate;
     };
 

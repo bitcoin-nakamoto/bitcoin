@@ -53,6 +53,7 @@ public:
 
     const Consensus::Params& GetConsensus() const { return consensus; }
     const CMessageHeader::MessageStartChars& MessageStart() const { return pchMessageStart; }
+    const CMessageHeader::MessageStartChars& DiskMessageStart() const { return pchDiskMessageStart; }
     int GetDefaultPort() const { return nDefaultPort; }
 
     const CBlock& GenesisBlock() const { return genesis; }
@@ -78,6 +79,7 @@ protected:
 
     Consensus::Params consensus;
     CMessageHeader::MessageStartChars pchMessageStart;
+    CMessageHeader::MessageStartChars pchDiskMessageStart;
     int nDefaultPort;
     uint64_t nPruneAfterHeight;
     std::vector<std::string> vSeeds;

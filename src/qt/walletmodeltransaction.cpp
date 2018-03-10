@@ -32,7 +32,7 @@ CWalletTx *WalletModelTransaction::getTransaction() const
 
 unsigned int WalletModelTransaction::getTransactionSize()
 {
-    return (!walletTransaction ? 0 : ::GetVirtualTransactionSize(*walletTransaction->tx));
+    return (!walletTransaction ? 0 : walletTransaction->tx->GetTotalSize());
 }
 
 CAmount WalletModelTransaction::getTransactionFee() const

@@ -365,6 +365,11 @@ UniValue getblocktemplate(const JSONRPCRequest& request)
             + HelpExampleRpc("getblocktemplate", "")
          );
 
+    // TODO
+
+    return NullUniValue;
+
+    /*
     LOCK(cs_main);
 
     std::string strMode = "template";
@@ -379,7 +384,7 @@ UniValue getblocktemplate(const JSONRPCRequest& request)
             strMode = modeval.get_str();
         else if (modeval.isNull())
         {
-            /* Do nothing */
+            // Do nothing
         }
         else
             throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid mode");
@@ -674,6 +679,7 @@ UniValue getblocktemplate(const JSONRPCRequest& request)
     }
 
     return result;
+    */
 }
 
 class submitblock_StateCatcher : public CValidationInterface
@@ -738,14 +744,6 @@ UniValue submitblock(const JSONRPCRequest& request)
             }
             // Otherwise, we might only have the header - process the block before returning
             fBlockPresent = true;
-        }
-    }
-
-    {
-        LOCK(cs_main);
-        BlockMap::iterator mi = mapBlockIndex.find(block.hashPrevBlock);
-        if (mi != mapBlockIndex.end()) {
-            UpdateUncommittedBlockStructures(block, mi->second, Params().GetConsensus());
         }
     }
 

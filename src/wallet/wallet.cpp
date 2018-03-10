@@ -2913,7 +2913,7 @@ bool CWallet::CreateTransaction(const std::vector<CRecipient>& vecSend, CWalletT
                     return false;
                 }
 
-                nBytes = GetVirtualTransactionSize(txNew);
+                nBytes = CTransaction(txNew).GetTotalSize();
 
                 // Remove scriptSigs to eliminate the fee calculation dummy signatures
                 for (auto& vin : txNew.vin) {
@@ -3022,7 +3022,7 @@ bool CWallet::CreateTransaction(const std::vector<CRecipient>& vecSend, CWalletT
         wtxNew.SetTx(MakeTransactionRef(std::move(txNew)));
 
         // Limit size
-        if (GetTransactionWeight(*wtxNew.tx) >= MAX_STANDARD_TX_WEIGHT)
+        if (wtxNew.tx->GetTotalSize() >= MAX_STANDARD_TX_SIZE)
         {
             strFailReason = _("Transaction too large");
             return false;

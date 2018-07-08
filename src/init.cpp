@@ -259,6 +259,7 @@ void Shutdown()
         pcoinsTip.reset();
         pcoinscatcher.reset();
         pcoinsdbview.reset();
+        ploadedcoinsdbview.reset();
         pblocktree.reset();
     }
     g_wallet_init_interface.Stop();
@@ -1442,6 +1443,7 @@ bool AppInitMain()
                 UnloadBlockIndex();
                 pcoinsTip.reset();
                 pcoinsdbview.reset();
+                ploadedcoinsdbview.reset();
                 pcoinscatcher.reset();
                 // new CBlockTreeDB tries to delete the existing file, which
                 // fails if it's still open from the previous loop. Close it first:
@@ -1499,6 +1501,7 @@ bool AppInitMain()
                 // block tree into mapBlockIndex!
 
                 pcoinsdbview.reset(new CCoinsViewDB(nCoinDBCache, false, fReset || fReindexChainState));
+                ploadedcoinsdbview.reset(new LoadedCoinsViewDB(nCoinDBCache, false, fReset || fReindexChainState));
                 pcoinscatcher.reset(new CCoinsViewErrorCatcher(pcoinsdbview.get()));
 
                 // If necessary, upgrade from older database format.
@@ -1750,8 +1753,17 @@ bool AppInitMain()
         return false;
     }
 
-    // ********************************************************* Step 12: finished
+    // ********************************************************* Step 12: load coins
+    std::vector<LoadedCoin> vLoadedCoin;
+    if (pcoinsdbview->ReadLoadedCoins(vLoadedCoin)) {
+        ploadedcoinsdbview->SetLoadedCoins(vLoadedCoin);
+    }
 
+
+    pcoinsTip->SetLoadedBackend(ploadedcoinsdbview.get());
+
+
+    // ********************************************************* Step 13: finished
     SetRPCWarmupFinished();
     uiInterface.InitMessage(_("Done loading"));
 

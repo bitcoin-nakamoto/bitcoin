@@ -331,9 +331,8 @@ CPPFLAGS="$CPPFLAGS -DHAVE_BUILD_INFO -D__STDC_FORMAT_MACROS"
 
 AC_ARG_WITH([utils],
   [AS_HELP_STRING([--with-utils],
-  [build bitcoin-cli bitcoin-tx (default=yes)])],
-  [build_bitcoin_utils=$withval],
-  [build_bitcoin_utils=yes])
+  [build bitcoin-cli bitcoin-tx (default=no)])],
+  [build_bitcoin_utils=no])
 
 AC_ARG_WITH([libs],
   [AS_HELP_STRING([--with-libs],

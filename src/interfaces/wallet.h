@@ -24,6 +24,7 @@
 class CCoinControl;
 class CKey;
 class CWallet;
+class LoadedCoin;
 enum class OutputType;
 struct CRecipient;
 
@@ -214,6 +215,9 @@ public:
     //! (put change in one group with wallet address)
     using CoinsList = std::map<CTxDestination, std::vector<std::tuple<COutPoint, WalletTxOut>>>;
     virtual CoinsList listCoins() = 0;
+
+    //! Return available loaded coins
+    virtual void availableLoadedCoins(std::vector<LoadedCoin>& vCoin) = 0;
 
     //! Return wallet transaction output information.
     virtual std::vector<WalletTxOut> getCoins(const std::vector<COutPoint>& outputs) = 0;

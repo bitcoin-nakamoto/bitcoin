@@ -280,6 +280,7 @@ CBlockIndex* FindForkInGlobalIndex(const CChain& chain, const CBlockLocator& loc
 }
 
 std::unique_ptr<CCoinsViewDB> pcoinsdbview;
+std::unique_ptr<LoadedCoinsViewDB> ploadedcoinsdbview;
 std::unique_ptr<CCoinsViewCache> pcoinsTip;
 std::unique_ptr<CBlockTreeDB> pblocktree;
 
@@ -380,7 +381,8 @@ bool CheckSequenceLocks(const CTransaction &tx, int flags, LockPoints* lp, bool 
             const CTxIn& txin = tx.vin[txinIndex];
             Coin coin;
             if (!viewMemPool.GetCoin(txin.prevout, coin)) {
-                return error("%s: Missing input", __func__);
+                if (!ploadedcoinsdbview->GetLoadedCoin(txin.prevout, coin))
+                    return error("%s: Missing input", __func__);
             }
             if (coin.nHeight == MEMPOOL_HEIGHT) {
                 // Assume all mempool transaction confirm in the next block
@@ -526,17 +528,17 @@ static bool CheckInputsFromMempoolAndCache(const CTransaction& tx, CValidationSt
         // available (or shouldn't assume we have, since CheckInputs does).
         // So we just return failure if the inputs are not available here,
         // and then only have to check equivalence for available inputs.
-        if (coin.IsSpent()) return false;
-
-        const CTransactionRef& txFrom = pool.get(txin.prevout.hash);
-        if (txFrom) {
-            assert(txFrom->GetHash() == txin.prevout.hash);
-            assert(txFrom->vout.size() > txin.prevout.n);
-            assert(txFrom->vout[txin.prevout.n] == coin.out);
-        } else {
-            const Coin& coinFromDisk = pcoinsTip->AccessCoin(txin.prevout);
-            assert(!coinFromDisk.IsSpent());
-            assert(coinFromDisk.out == coin.out);
+        if (!coin.IsSpent()) {
+            const CTransactionRef& txFrom = pool.get(txin.prevout.hash);
+            if (txFrom) {
+                assert(txFrom->GetHash() == txin.prevout.hash);
+                assert(txFrom->vout.size() > txin.prevout.n);
+                assert(txFrom->vout[txin.prevout.n] == coin.out);
+            } else {
+                const Coin& coinFromDisk = pcoinsTip->AccessCoin(txin.prevout);
+                assert(!coinFromDisk.IsSpent());
+                assert(coinFromDisk.out == coin.out);
+            }
         }
     }
 
@@ -4774,3 +4776,23 @@ public:
         mapBlockIndex.clear();
     }
 } instance_of_cmaincleanup;
+
+// TODO Core & Cash versions
+static const size_t MAX_OUTPUTS_PER_TX = 1000000 / ::GetSerializeSize(CTxOut(), SER_NETWORK, PROTOCOL_VERSION);
+
+bool GetOutputIndexByTxid(const Coin& coin, const uint256& txid, uint32_t& n)
+{
+    COutPoint iter(txid, 0);
+    while (iter.n < MAX_OUTPUTS_PER_TX)
+    {
+        Coin coinFound;
+        if (!pcoinsTip->GetCoin(iter, coinFound))
+            return false;
+        if (coinFound == coin && !coinFound.IsSpent()) {
+            n = iter.n;
+            return true;
+        }
+        iter.n++;
+    }
+    return false;
+}

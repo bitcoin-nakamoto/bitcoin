@@ -6,15 +6,20 @@
 #include <txdb.h>
 
 #include <chainparams.h>
+#include <clientversion.h>
+#include <coins.h>
+#include <dbwrapper.h>
 #include <hash.h>
-#include <random.h>
+#include <init.h>
 #include <pow.h>
+#include <random.h>
+#include <stdint.h>
+#include <streams.h>
 #include <uint256.h>
 #include <util.h>
 #include <ui_interface.h>
-#include <init.h>
 
-#include <stdint.h>
+#include <validation.h>
 
 #include <boost/thread.hpp>
 
@@ -54,7 +59,7 @@ struct CoinEntry {
 
 }
 
-CCoinsViewDB::CCoinsViewDB(size_t nCacheSize, bool fMemory, bool fWipe) : db(GetDataDir() / "chainstate", nCacheSize, fMemory, fWipe, true) 
+CCoinsViewDB::CCoinsViewDB(size_t nCacheSize, bool fMemory, bool fWipe) : db(GetDataDir() / "chainstate", nCacheSize, fMemory, fWipe, true)
 {
 }
 
@@ -424,3 +429,151 @@ bool CCoinsViewDB::Upgrade() {
     LogPrintf("[%s].\n", ShutdownRequested() ? "CANCELLED" : "DONE");
     return !ShutdownRequested();
 }
+
+LoadedCoinsViewDB::LoadedCoinsViewDB(size_t nCacheSize, bool fMemory, bool fWipe) : db(GetDataDir() / "loadedcoins", nCacheSize, fMemory, fWipe, true)
+{
+}
+
+bool LoadedCoinsViewDB::GetLoadedCoin(const COutPoint &outpoint, Coin &coin) const {
+    // TODO
+    //return db.Read(CoinEntry(&outpoint), coin);
+
+    if (!HaveLoadedCoin(outpoint))
+        return false;
+
+    coin = mapLoadedCoin.at(outpoint);
+
+    return true;
+}
+
+bool LoadedCoinsViewDB::HaveLoadedCoin(const COutPoint &outpoint) const {
+    // TODO
+    //return db.Exists(CoinEntry(&outpoint));
+
+    if (mapLoadedCoin.find(outpoint) != mapLoadedCoin.end())
+        return true;
+
+    return false;
+}
+
+bool LoadedCoinsViewDB::ListLoadedCoins(std::vector<LoadedCoin>& vLoadedCoinOut) const
+{
+    if (!vLoadedCoin.size())
+        return false;
+
+    vLoadedCoinOut = vLoadedCoin;
+
+    return true;
+}
+
+bool CCoinsViewDB::WriteLoadedCoins()
+{
+    std::unique_ptr<CDBIterator> pcursor(db.NewIterator());
+    pcursor->Seek(DB_COIN);
+    if (!pcursor->Valid()) {
+        return false;
+    }
+
+    // Vector to store coins that will be written
+    std::vector<LoadedCoin> vLoadedCoin;
+
+    // Lookup the coins to be written
+    std::pair<uint8_t, uint256> key;
+    int count = 0;
+    while (pcursor->Valid()) {
+        // Get the key (DB_COIN : txid)
+        if (!pcursor->GetKey(key) || key.first != DB_COIN) {
+            break;
+        }
+
+        // Get the value (Coin)
+        Coin coin;
+        if (!pcursor->GetValue(coin)) {
+            return false;
+        }
+
+        // TODO it seems to me that there obviously should be a better way
+        // of doing this... Please improve.
+        // Try to lookup the outpoint. Note that this call will look up
+        // the coin with pcoinsTip and verify that it is unspent or fail.
+        uint32_t n = 0;
+        if (!GetOutputIndexByTxid(coin, key.second, n)) {
+            return false;
+        }
+        COutPoint outpoint(key.second, n);
+
+        // Create LoadedCoin and add to vector
+        LoadedCoin loadedCoin;
+        loadedCoin.coin = coin;
+        loadedCoin.out = outpoint;
+        vLoadedCoin.push_back(loadedCoin);
+
+        count++;
+
+        pcursor->Next();
+    }
+
+    if ((size_t)count != vLoadedCoin.size()) {
+        return false;
+    }
+
+    // Write the coins
+    fs::path path = GetDataDir() / "loaded_coins.dat";
+    CAutoFile fileout(fsbridge::fopen(path, "w"), SER_DISK, CLIENT_VERSION);
+    if (fileout.IsNull()) {
+        return false;
+    }
+
+    try {
+        fileout << 149900; // version required to read: 0.14.99 or later
+        fileout << CLIENT_VERSION; // version that wrote the file
+        fileout << count; // Number of coins in file
+        for (const LoadedCoin& c : vLoadedCoin) {
+            fileout << c;
+        }
+    }
+    catch (const std::exception&) {
+        // TODO
+        //std::cout << "Exception: " << e.what() << std::endl;
+        return false;
+    }
+
+    return true;
+}
+
+bool CCoinsViewDB::ReadLoadedCoins(std::vector<LoadedCoin>& vLoadedCoin)
+{
+    fs::path path = GetDataDir() / "loaded_coins.dat";
+    CAutoFile filein(fsbridge::fopen(path, "r"), SER_DISK, CLIENT_VERSION);
+    if (filein.IsNull()) {
+        return false;
+    }
+
+    uint64_t fileSize = fs::file_size(path);
+    uint64_t dataSize = fileSize - (sizeof(int) * 3);
+
+    try {
+        int nVersionRequired, nVersionThatWrote;
+        filein >> nVersionRequired;
+        filein >> nVersionThatWrote;
+        if (nVersionRequired > CLIENT_VERSION) {
+            return false;
+        }
+
+        int count = 0;
+        filein >> count;
+        for (int i = 0; i < count; i++) {
+            LoadedCoin loadedCoin;
+            filein >> loadedCoin;
+            vLoadedCoin.push_back(loadedCoin);
+        }
+    }
+    catch (const std::exception& e) {
+        // TODO
+        //std::cout << "Exception: " << e.what() << std::endl;
+        return false;
+    }
+
+    return true;
+}
+

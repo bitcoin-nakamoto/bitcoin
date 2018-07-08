@@ -78,6 +78,7 @@ class CScheduler;
 class CTxMemPool;
 class CBlockPolicyEstimator;
 class CWalletTx;
+class LoadedCoin;
 struct FeeCalculation;
 enum class FeeEstimateMode;
 
@@ -817,6 +818,11 @@ public:
      * populate vCoins with vector of available COutputs.
      */
     void AvailableCoins(std::vector<COutput>& vCoins, bool fOnlySafe=true, const CCoinControl *coinControl = nullptr, const CAmount& nMinimumAmount = 1, const CAmount& nMaximumAmount = MAX_MONEY, const CAmount& nMinimumSumAmount = MAX_MONEY, const uint64_t nMaximumCount = 0, const int nMinDepth = 0, const int nMaxDepth = 9999999) const;
+
+    /**
+     * populate vCoins with vector of available loaded coins.
+     */
+    void AvailableLoadedCoins(std::vector<LoadedCoin>& vCoin, const CCoinControl *coinControl = nullptr) const;
 
     /**
      * Return list of available coins and locked coins grouped by non-change output address.

@@ -24,6 +24,7 @@
 #include <script/script.h>
 #include <scheduler.h>
 #include <timedata.h>
+#include <txdb.h> // TODO remove
 #include <txmempool.h>
 #include <utilmoneystr.h>
 #include <wallet/fees.h>
@@ -1569,7 +1570,11 @@ int64_t CalculateMaximumSignedTxSize(const CTransaction &tx, const CWallet *wall
     for (auto& input : tx.vin) {
         const auto mi = wallet->mapWallet.find(input.prevout.hash);
         if (mi == wallet->mapWallet.end()) {
-            return -1;
+            // We might be spending a loaded coin input,
+            // so we have to skip this check for now.
+            // TODO wallet track loaded coins (without being a CWalletTx)
+            // TODO return -1;
+            continue;
         }
         assert(input.prevout.n < mi->second.tx->vout.size());
         txouts.emplace_back(mi->second.tx->vout[input.prevout.n]);
@@ -2116,6 +2121,13 @@ CAmount CWallet::GetBalance() const
             if (pcoin->IsTrusted())
                 nTotal += pcoin->GetAvailableCredit();
         }
+
+        std::vector<LoadedCoin> vLoadedCoin;
+        if (ploadedcoinsdbview) {
+            AvailableLoadedCoins(vLoadedCoin);
+            for (const LoadedCoin& c : vLoadedCoin)
+                nTotal += c.coin.out.nValue;
+        }
     }
 
     return nTotal;
@@ -2250,6 +2262,14 @@ CAmount CWallet::GetAvailableBalance(const CCoinControl* coinControl) const
             balance += out.tx->tx->vout[out.i].nValue;
         }
     }
+    // TODO count & display seperately?
+    // Also include loaded coins
+    std::vector<LoadedCoin> vLoadedCoin;
+    AvailableLoadedCoins(vLoadedCoin, coinControl);
+    for (const LoadedCoin& c : vLoadedCoin) {
+        balance += c.coin.out.nValue;
+    }
+
     return balance;
 }
 
@@ -2358,6 +2378,39 @@ void CWallet::AvailableCoins(std::vector<COutput> &vCoins, bool fOnlySafe, const
             if (nMaximumCount > 0 && vCoins.size() >= nMaximumCount) {
                 return;
             }
+        }
+    }
+}
+
+void CWallet::AvailableLoadedCoins(std::vector<LoadedCoin>& vCoin, const CCoinControl *coinControl) const
+{
+    if (!ploadedcoinsdbview)
+        return;
+
+    // Count loaded coins
+    std::vector<LoadedCoin> vLoadedCoin;
+    if (ploadedcoinsdbview->ListLoadedCoins(vLoadedCoin)) {
+        for (const LoadedCoin& c : vLoadedCoin) {
+            // TODO
+            //if (c.coin.out.nValue < nMinimumAmount || c.coin.out.nValue > nMaximumAmount)
+            //    continue;
+
+            if (coinControl && coinControl->HasSelected() && !coinControl->fAllowOtherInputs && !coinControl->IsSelected(c.out))
+                continue;
+
+            // TODO
+            //if (IsLockedCoin(entry.first, i))
+            //    continue;
+
+            if (IsSpent(c.out.hash, c.out.n))
+                continue;
+
+            isminetype mine = IsMine(c.coin.out);
+
+            if (mine == ISMINE_NO) {
+                continue;
+            }
+            vCoin.push_back(c);
         }
     }
 }
@@ -2494,6 +2547,8 @@ bool CWallet::SelectCoinsMinConf(const CAmount& nTargetValue, const CoinEligibil
 bool CWallet::SelectCoins(const std::vector<COutput>& vAvailableCoins, const CAmount& nTargetValue, std::set<CInputCoin>& setCoinsRet, CAmount& nValueRet, const CCoinControl& coin_control, CoinSelectionParams& coin_selection_params, bool& bnb_used) const
 {
     std::vector<COutput> vCoins(vAvailableCoins);
+    std::vector<LoadedCoin> vLoadedCoin;
+    AvailableLoadedCoins(vLoadedCoin);
 
     // coin control -> return all selected outputs (we want all selected to go into the transaction for sure)
     if (coin_control.HasSelected() && !coin_control.fAllowOtherInputs)
@@ -2508,6 +2563,13 @@ bool CWallet::SelectCoins(const std::vector<COutput>& vAvailableCoins, const CAm
             nValueRet += out.tx->tx->vout[out.i].nValue;
             setCoinsRet.insert(CInputCoin(out.tx->tx, out.i));
         }
+
+        for (const LoadedCoin& c : vLoadedCoin)
+        {
+            nValueRet += c.coin.out.nValue;
+            setCoinsRet.insert(CInputCoin(c.out, c.coin.out));
+        }
+
         return (nValueRet >= nTargetValue);
     }
 
@@ -2899,6 +2961,7 @@ bool CWallet::CreateTransaction(const std::vector<CRecipient>& vecSend, CTransac
                 nBytes = CalculateMaximumSignedTxSize(txNew, this);
                 if (nBytes < 0) {
                     strFailReason = _("Signing transaction failed");
+                    CTransaction txNewConst(txNew);
                     return false;
                 }
 
@@ -3088,6 +3151,12 @@ bool CWallet::CommitTransaction(CTransactionRef tx, mapValue_t mapValue, std::ve
             // Notify that old coins are spent
             for (const CTxIn& txin : wtxNew.tx->vin)
             {
+                // TODO handle loaded coin being spent
+                // Skip notification if spending a loaded coin (will segfault)
+                const auto i = mapWallet.find(txin.prevout.hash);
+                if (i == mapWallet.end())
+                    continue;
+
                 CWalletTx &coin = mapWallet.at(txin.prevout.hash);
                 coin.BindWallet(this);
                 NotifyTransactionChanged(this, coin.GetHash(), CT_UPDATED);

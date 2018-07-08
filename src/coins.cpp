@@ -8,6 +8,8 @@
 #include <random.h>
 
 bool CCoinsView::GetCoin(const COutPoint &outpoint, Coin &coin) const { return false; }
+bool CCoinsView::GetLoadedCoin(const COutPoint &outpoint, Coin &coin) const { return false; }
+int CCoinsView::CountLoadedCoins() const { return 0; }
 uint256 CCoinsView::GetBestBlock() const { return uint256(); }
 std::vector<uint256> CCoinsView::GetHeadBlocks() const { return std::vector<uint256>(); }
 bool CCoinsView::BatchWrite(CCoinsMap &mapCoins, const uint256 &hashBlock) { return false; }
@@ -19,9 +21,18 @@ bool CCoinsView::HaveCoin(const COutPoint &outpoint) const
     return GetCoin(outpoint, coin);
 }
 
+bool CCoinsView::HaveLoadedCoin(const COutPoint &outpoint) const
+{
+    Coin coin;
+    return GetLoadedCoin(outpoint, coin);
+}
+
 CCoinsViewBacked::CCoinsViewBacked(CCoinsView *viewIn) : base(viewIn) { }
 bool CCoinsViewBacked::GetCoin(const COutPoint &outpoint, Coin &coin) const { return base->GetCoin(outpoint, coin); }
 bool CCoinsViewBacked::HaveCoin(const COutPoint &outpoint) const { return base->HaveCoin(outpoint); }
+bool CCoinsViewBacked::GetLoadedCoin(const COutPoint &outpoint, Coin &coin) const { return base->GetLoadedCoin(outpoint, coin); }
+bool CCoinsViewBacked::HaveLoadedCoin(const COutPoint &outpoint) const { return base->HaveLoadedCoin(outpoint); }
+int CCoinsViewBacked::CountLoadedCoins() const { return base->CountLoadedCoins(); }
 uint256 CCoinsViewBacked::GetBestBlock() const { return base->GetBestBlock(); }
 std::vector<uint256> CCoinsViewBacked::GetHeadBlocks() const { return base->GetHeadBlocks(); }
 void CCoinsViewBacked::SetBackend(CCoinsView &viewIn) { base = &viewIn; }
@@ -42,8 +53,11 @@ CCoinsMap::iterator CCoinsViewCache::FetchCoin(const COutPoint &outpoint) const 
     if (it != cacheCoins.end())
         return it;
     Coin tmp;
-    if (!base->GetCoin(outpoint, tmp))
-        return cacheCoins.end();
+    if (!base->GetCoin(outpoint, tmp)) {
+        if (!loadedBase || !loadedBase->GetLoadedCoin(outpoint, tmp)) {
+            return cacheCoins.end();
+        }
+    }
     CCoinsMap::iterator ret = cacheCoins.emplace(std::piecewise_construct, std::forward_as_tuple(outpoint), std::forward_as_tuple(std::move(tmp))).first;
     if (ret->second.coin.IsSpent()) {
         // The parent only has an empty entry for this outpoint; we can consider our
@@ -120,6 +134,21 @@ const Coin& CCoinsViewCache::AccessCoin(const COutPoint &outpoint) const {
     } else {
         return it->second.coin;
     }
+}
+// TODO remove?
+bool CCoinsViewCache::GetLoadedCoin(const COutPoint &outpoint, Coin &coin) const
+{
+    return false;
+}
+
+bool CCoinsViewCache::HaveLoadedCoin(const COutPoint &outpoint) const
+{
+    return false;
+}
+
+int CCoinsViewCache::CountLoadedCoins() const
+{
+    return 0;
 }
 
 bool CCoinsViewCache::HaveCoin(const COutPoint &outpoint) const {
@@ -242,6 +271,11 @@ bool CCoinsViewCache::HaveInputs(const CTransaction& tx) const
         }
     }
     return true;
+}
+
+void CCoinsViewCache::SetLoadedBackend(CCoinsView* loadedBaseIn)
+{
+    loadedBase = loadedBaseIn;
 }
 
 static const size_t MIN_TRANSACTION_OUTPUT_WEIGHT = WITNESS_SCALE_FACTOR * ::GetSerializeSize(CTxOut(), SER_NETWORK, PROTOCOL_VERSION);

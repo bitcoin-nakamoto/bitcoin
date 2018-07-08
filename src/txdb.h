@@ -39,6 +39,21 @@ static const int64_t nMaxBlockDBAndTxIndexCache = 1024;
 //! Max memory allocated to coin DB specific cache (MiB)
 static const int64_t nMaxCoinsDBCache = 8;
 
+// TODO move
+struct LoadedCoin
+{
+    Coin coin;
+    COutPoint out;
+
+    ADD_SERIALIZE_METHODS;
+
+    template <typename Stream, typename Operation>
+    inline void SerializationOp(Stream &s, Operation ser_action) {
+        READWRITE(coin);
+        READWRITE(out);
+    }
+};
+
 struct CDiskTxPos : public CDiskBlockPos
 {
     unsigned int nTxOffset; // after header
@@ -82,6 +97,53 @@ public:
     //! Attempt to update from an older database format. Returns whether an error occurred.
     bool Upgrade();
     size_t EstimateSize() const override;
+
+    // TODO move to LoadedCoinsDBView
+    bool WriteLoadedCoins();
+    bool ReadLoadedCoins(std::vector<LoadedCoin>& vLoadedCoin);
+};
+
+// TODO
+/*
+ * Basic utxo loading implementation follows. This is a functional demo of the
+ * concept which can be improved in a couple ways:
+ *
+ * 1. Write loaded coins with ldb to datadir / loadedcoins after they are read.
+ * The constructor of this class already initializes CDBWrapper with the
+ * loadedcoins directory.
+ *
+ * 2. Finish implementing CCoinsView, CCoinsViewCache, CCoinsViewBacked &
+ * CCoinsViewMempool functions for LoadedCoinsView.
+ * (And then remove the need to set the loaded backend from the regular
+ * CCoinsView)
+ *
+ */
+
+/** Loaded Coins view (copies CCoinsView functions for loaded coins)  */
+class LoadedCoinsViewDB final : public CCoinsView // TODO inherit LoadedCoinView
+{
+protected:
+    CDBWrapper db;
+public:
+    explicit LoadedCoinsViewDB(size_t nCacheSize, bool fMemory = false, bool fWipe = false);
+
+    virtual bool GetLoadedCoin(const COutPoint &outpoint, Coin &coin) const;
+    virtual bool HaveLoadedCoin(const COutPoint &outpoint) const;
+    virtual int CountLoadedCoins() const { return mapLoadedCoin.size(); };
+
+    bool ListLoadedCoins(std::vector<LoadedCoin>& vLoadedCoinOut) const;
+
+    // For testing
+    void SetLoadedCoins(const std::vector<LoadedCoin>& vLoadedCoinIn) {
+        vLoadedCoin = vLoadedCoinIn;
+
+        for (const LoadedCoin& c : vLoadedCoin)
+            mapLoadedCoin[c.out] = c.coin;
+    }
+
+private:
+    std::map<COutPoint, Coin> mapLoadedCoin;
+    std::vector<LoadedCoin> vLoadedCoin;
 };
 
 /** Specialization of CCoinsViewCursor to iterate over a CCoinsViewDB */

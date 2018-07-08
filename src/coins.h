@@ -79,6 +79,14 @@ public:
     size_t DynamicMemoryUsage() const {
         return memusage::DynamicUsage(out.scriptPubKey);
     }
+
+    bool operator==(const Coin& coin) {
+        if (out == coin.out
+                && fCoinBase == coin.fCoinBase
+                && nHeight == coin.nHeight)
+            return true;
+        return false;
+    }
 };
 
 class SaltedOutpointHasher
@@ -150,9 +158,12 @@ public:
      *  When false is returned, coin's value is unspecified.
      */
     virtual bool GetCoin(const COutPoint &outpoint, Coin &coin) const;
+    virtual bool GetLoadedCoin(const COutPoint &outpoint, Coin &coin) const;
+    virtual int CountLoadedCoins() const;
 
     //! Just check whether a given outpoint is unspent.
     virtual bool HaveCoin(const COutPoint &outpoint) const;
+    virtual bool HaveLoadedCoin(const COutPoint &outpoint) const;
 
     //! Retrieve the block hash whose state this CCoinsView currently represents
     virtual uint256 GetBestBlock() const;
@@ -183,11 +194,16 @@ class CCoinsViewBacked : public CCoinsView
 {
 protected:
     CCoinsView *base;
+    // TODO remove
+    CCoinsView *loadedBase = nullptr;
 
 public:
     CCoinsViewBacked(CCoinsView *viewIn);
     bool GetCoin(const COutPoint &outpoint, Coin &coin) const override;
+    bool GetLoadedCoin(const COutPoint &outpoint, Coin &coin) const override;
     bool HaveCoin(const COutPoint &outpoint) const override;
+    bool HaveLoadedCoin(const COutPoint &outpoint) const override;
+    int CountLoadedCoins() const override;
     uint256 GetBestBlock() const override;
     std::vector<uint256> GetHeadBlocks() const override;
     void SetBackend(CCoinsView &viewIn);
@@ -203,7 +219,7 @@ class CCoinsViewCache : public CCoinsViewBacked
 protected:
     /**
      * Make mutable so that we can "fill the cache" even from Get-methods
-     * declared as "const".  
+     * declared as "const".
      */
     mutable uint256 hashBlock;
     mutable CCoinsMap cacheCoins;
@@ -221,7 +237,10 @@ public:
 
     // Standard CCoinsView methods
     bool GetCoin(const COutPoint &outpoint, Coin &coin) const override;
+    bool GetLoadedCoin(const COutPoint &outpoint, Coin &coin) const override;
     bool HaveCoin(const COutPoint &outpoint) const override;
+    bool HaveLoadedCoin(const COutPoint &outpoint) const override;
+    int CountLoadedCoins() const override;
     uint256 GetBestBlock() const override;
     void SetBestBlock(const uint256 &hashBlock);
     bool BatchWrite(CCoinsMap &mapCoins, const uint256 &hashBlock) override;
@@ -280,7 +299,7 @@ public:
     //! Calculate the size of the cache (in bytes)
     size_t DynamicMemoryUsage() const;
 
-    /** 
+    /**
      * Amount of bitcoins coming in to a transaction
      * Note that lightweight clients may not know anything besides the hash of previous transactions,
      * so may not be able to calculate this.
@@ -292,6 +311,8 @@ public:
 
     //! Check whether all prevouts of the transaction are present in the UTXO set represented by this view
     bool HaveInputs(const CTransaction& tx) const;
+
+    void SetLoadedBackend(CCoinsView *loadedBaseIn);
 
 private:
     CCoinsMap::iterator FetchCoin(const COutPoint &outpoint) const;

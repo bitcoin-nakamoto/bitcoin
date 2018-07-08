@@ -28,6 +28,13 @@ public:
         effective_value = txout.nValue;
     }
 
+    CInputCoin(const COutPoint& outpointIn, const CTxOut& txoutIn)
+    {
+        outpoint = outpointIn;
+        txout = txoutIn;
+        effective_value = txout.nValue;
+    }
+
     COutPoint outpoint;
     CTxOut txout;
     CAmount effective_value;

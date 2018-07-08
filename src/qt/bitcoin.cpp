@@ -403,6 +403,8 @@ void BitcoinApplication::startThread()
 
 void BitcoinApplication::parameterSetup()
 {
+    gArgs.SoftSetBoolArg("-printtoconsole", false);
+
     m_node.initLogging();
     m_node.initParameterInteraction();
 }

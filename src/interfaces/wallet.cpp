@@ -16,6 +16,7 @@
 #include <support/allocators/secure.h>
 #include <sync.h>
 #include <timedata.h>
+#include <txdb.h> // TODO remove (for loaded coin until moved)
 #include <ui_interface.h>
 #include <uint256.h>
 #include <validation.h>
@@ -385,6 +386,11 @@ public:
             }
         }
         return result;
+    }
+    void availableLoadedCoins(std::vector<LoadedCoin>& vCoin) override
+    {
+        LOCK2(::cs_main, m_wallet.cs_wallet);
+        m_wallet.AvailableLoadedCoins(vCoin);
     }
     std::vector<WalletTxOut> getCoins(const std::vector<COutPoint>& outputs) override
     {

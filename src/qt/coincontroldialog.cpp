@@ -18,6 +18,7 @@
 #include <key_io.h>
 #include <policy/fees.h>
 #include <policy/policy.h>
+#include <txdb.h>
 #include <validation.h> // For mempool
 #include <wallet/fees.h>
 #include <wallet/wallet.h>
@@ -621,6 +622,7 @@ void CoinControlDialog::updateView()
 
     int nDisplayUnit = model->getOptionsModel()->getDisplayUnit();
 
+    // Add the normal wallet outputs to the view
     for (const auto& coins : model->wallet().listCoins()) {
         CCoinControlWidgetItem *itemWalletAddress = new CCoinControlWidgetItem();
         itemWalletAddress->setCheckState(COLUMN_CHECKBOX, Qt::Unchecked);
@@ -723,6 +725,40 @@ void CoinControlDialog::updateView()
             itemWalletAddress->setText(COLUMN_AMOUNT, BitcoinUnits::format(nDisplayUnit, nSum));
             itemWalletAddress->setData(COLUMN_AMOUNT, Qt::UserRole, QVariant((qlonglong)nSum));
         }
+    }
+
+    // Add loaded coins to the view
+    std::vector<LoadedCoin> vLoadedCoin;
+    model->wallet().availableLoadedCoins(vLoadedCoin);
+    for (const LoadedCoin& c : vLoadedCoin) {
+        CCoinControlWidgetItem *itemOutput = new CCoinControlWidgetItem(ui->treeWidget);
+        itemOutput->setFlags(flgCheckbox);
+        itemOutput->setCheckState(COLUMN_CHECKBOX, Qt::Unchecked);
+
+        CTxDestination outputAddress;
+        QString sAddress = "";
+        if (ExtractDestination(c.coin.out.scriptPubKey, outputAddress)) {
+            sAddress = QString::fromStdString(EncodeDestination(outputAddress));
+            // TODO itemOutput->setText(COLUMN_ADDRESS, sAddress);
+            itemOutput->setText(COLUMN_ADDRESS, tr("Loaded Coin ADDR unknown"));
+        }
+        itemOutput->setText(COLUMN_LABEL, tr("(LOADED)"));
+
+        // amount
+        itemOutput->setText(COLUMN_AMOUNT, BitcoinUnits::format(nDisplayUnit, c.coin.out.nValue));
+        itemOutput->setData(COLUMN_AMOUNT, Qt::UserRole, QVariant((qlonglong)c.coin.out.nValue));
+
+        // TODO show other data that coincontroldialog displays
+
+        // transaction hash
+        itemOutput->setText(COLUMN_TXHASH, QString::fromStdString(c.out.hash.ToString()));
+
+        // vout index
+        itemOutput->setText(COLUMN_VOUT_INDEX, QString::number(c.out.n));
+
+         // set checkbox
+        if (coinControl()->IsSelected(c.out))
+            itemOutput->setCheckState(COLUMN_CHECKBOX, Qt::Checked);
     }
 
     // expand all partially selected

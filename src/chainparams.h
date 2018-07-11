@@ -70,6 +70,7 @@ public:
     /** Return the list of hostnames to look up for DNS seeds */
     const std::vector<std::string>& DNSSeeds() const { return vSeeds; }
     const std::vector<unsigned char>& Base58Prefix(Base58Type type) const { return base58Prefixes[type]; }
+    const std::string &CashAddrPrefix() const { return cashaddrPrefix; }
     const std::string& Bech32HRP() const { return bech32_hrp; }
     const std::vector<SeedSpec6>& FixedSeeds() const { return vFixedSeeds; }
     const CCheckpointData& Checkpoints() const { return checkpointData; }
@@ -84,6 +85,7 @@ protected:
     uint64_t nPruneAfterHeight;
     std::vector<std::string> vSeeds;
     std::vector<unsigned char> base58Prefixes[MAX_BASE58_TYPES];
+    std::string cashaddrPrefix;
     std::string bech32_hrp;
     std::string strNetworkID;
     CBlock genesis;

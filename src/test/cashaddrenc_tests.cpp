@@ -70,6 +70,19 @@ const std::array<std::pair<uint8_t, uint32_t>, 8> valid_sizes = {
 
 BOOST_FIXTURE_TEST_SUITE(cashaddrenc_tests, BasicTestingSetup)
 
+inline uint160 uint160S(const char *str)
+{
+    uint160 rv;
+    rv.SetHex(str);
+    return rv;
+}
+inline uint160 uint160S(const std::string& str)
+{
+    uint160 rv;
+    rv.SetHex(str);
+    return rv;
+}
+
 BOOST_AUTO_TEST_CASE(encode_decode_all_sizes) {
     FastRandomContext rand(true);
     const std::string prefix = "bitcoincash";
